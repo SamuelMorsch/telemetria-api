@@ -11,7 +11,7 @@
 
 ---
 
-## 📋 Glossário e Navegação
+## Glossário e Navegação
 
 - [Descrição do Projeto](#descrição)
 - [Arquitetura do Sistema](#arquitetura)
@@ -20,7 +20,7 @@
 - [Acesso em Produção (Nuvem)](#producao)
 
 <a id="descrição"></a>
-## ☁️ Descrição
+## Descrição
 
 Este repositório contém o **Módulo Cloud (API REST)** do sistema de Telemetria Automotiva Avançada. Desenvolvido em Node.js com o framework Express, este servidor atua como o nó central de comunicação da arquitetura polirepositório.
 
@@ -32,7 +32,7 @@ A principal responsabilidade desta API é atuar como ponte entre os dados coleta
 * **Prover:** Servir esses dados formatados e limpos para consumo pelo Painel Web Administrativo da oficina mecânica.
 
 <a id="arquitetura"></a>
-## 🏗️ Arquitetura e Stack
+## Arquitetura e Stack
 
 A API foi projetada para garantir baixo acoplamento e alta disponibilidade em nuvem, utilizando:
 * **Runtime:** Node.js.
@@ -41,7 +41,7 @@ A API foi projetada para garantir baixo acoplamento e alta disponibilidade em nu
 * **Hospedagem:** Deploy automatizado e contínuo via Render, integrado diretamente à branch `main` do GitHub.
 
 <a id="rotas"></a>
-## 🛣️ Rotas da API (Endpoints)
+## Rotas da API (Endpoints)
 
 Abaixo estão as portas de comunicação expostas pelo servidor:
 
@@ -50,7 +50,7 @@ Abaixo estão as portas de comunicação expostas pelo servidor:
 * `GET /api/falhas` - **Consumo de Dados**: Rota consumida pelo Painel Web para listar todo o histórico de falhas sincronizadas na nuvem.
 
 <a id="execução"></a>
-## 🚀 Instruções de Execução Local
+## Instruções de Execução Local
 
 ### Pré-requisitos
 * Node.js v18+ instalado.
@@ -62,3 +62,8 @@ Abaixo estão as portas de comunicação expostas pelo servidor:
    ```bash
    git clone [https://github.com/seu-usuario/telemetria-api.git](https://github.com/seu-usuario/telemetria-api.git)
    cd telemetria-api
+<a id="producao"></a>
+## 🌍 Acesso em Produção (Nuvem)
+A API encontra-se hospedada na plataforma Render e pode ser acessada publicamente.
+
+**URL Base da API:** [https://api-telemetria-tcc.onrender.com](https://api-telemetria-tcc.onrender.com)

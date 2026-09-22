@@ -1,72 +1,77 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
+const { Pool } = require('pg');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
 
-// Configurações de segurança e formato de dados
-app.use(cors());
-app.use(express.json()); // Permite que a API entenda arquivos JSON vindos do app
+// 1. Configuração da ligação ao PostgreSQL (Supabase)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-// Rota de Teste (Health Check)
+// 2. Inicialização: Garante que a tabela existe no banco de dados real
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS falhas (
+        id SERIAL PRIMARY KEY,
+        codigo VARCHAR(50) NOT NULL,
+        descricao TEXT NOT NULL,
+        data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log("Banco de dados PostgreSQL conectado e tabela verificada.");
+  } catch (error) {
+    console.error("Erro ao conectar no banco de dados:", error);
+  }
+}
+initDB();
+
+// 3. Rotas da API reescritas para usar SQL
 app.get('/api/status', (req, res) => {
-    res.json({ 
-        status: 'online', 
-        mensagem: 'API da Telemetria Automotiva rodando 100%!',
-        timestamp: new Date().toISOString()
-    });
+  res.status(200).json({ status: "API Edge-to-Cloud conectada ao PostgreSQL" });
 });
 
-// ==========================================
-// BANCO DE DADOS EM MEMÓRIA (PROVISÓRIO)
-// ==========================================
-// Vamos usar uma lista simples enquanto não configuramos um banco de dados real na nuvem
-let historicoDeFalhasNaNuvem = [];
+app.post('/api/sincronizar', async (req, res) => {
+  const { falhas } = req.body;
+  
+  if (!falhas || !Array.isArray(falhas)) {
+    return res.status(400).json({ erro: "Payload inválido. Esperado um array." });
+  }
 
-// ==========================================
-// ROTA 1: O Celular ENVIA os dados (POST)
-// ==========================================
-app.post('/api/sincronizar', (req, res) => {
-    // O aplicativo vai enviar um JSON contendo os códigos das falhas
-    const { falhas, data_sincronizacao } = req.body;
-
-    if (!falhas || falhas.length === 0) {
-        return res.status(400).json({ erro: 'Nenhuma falha recebida no pacote.' });
+  try {
+    // Insere cada falha vinda do celular diretamente na nuvem
+    for (const falha of falhas) {
+      await pool.query(
+        'INSERT INTO falhas (codigo, descricao) VALUES ($1, $2)',
+        [falha.codigo, falha.descricao]
+      );
     }
-
-    console.log(`\n[📥] Nova sincronização recebida do Edge (App)!`);
-    console.log(`Data: ${data_sincronizacao}`);
-    console.log(`Falhas:`, falhas);
-
-    // Salva na memória da nossa API
-    const novoRegistro = {
-        id: historicoDeFalhasNaNuvem.length + 1,
-        falhas: falhas,
-        data_sincronizacao: data_sincronizacao,
-        recebido_em: new Date().toISOString()
-    };
-    
-    historicoDeFalhasNaNuvem.push(novoRegistro);
-
-    // Responde para o celular que deu tudo certo
-    res.status(201).json({ mensagem: 'Sincronização concluída com sucesso!' });
+    console.log(`[📥] ${falhas.length} falha(s) sincronizada(s) com sucesso.`);
+    res.status(201).json({ mensagem: "Sincronização concluída com sucesso no PostgreSQL" });
+  } catch (error) {
+    console.error("Erro no INSERT:", error);
+    res.status(500).json({ erro: "Erro ao salvar no banco de dados" });
+  }
 });
 
-// ==========================================
-// ROTA 2: O Painel Web LÊ os dados (GET)
-// ==========================================
-app.get('/api/falhas', (req, res) => {
-    // Retorna todos os dados salvos para o painel do mecânico
-    res.json(historicoDeFalhasNaNuvem);
+app.get('/api/falhas', async (req, res) => {
+  try {
+    // Busca o histórico ordenado pelas mais recentes
+    const result = await pool.query('SELECT * FROM falhas ORDER BY data_registro DESC');
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Erro no SELECT:", error);
+    res.status(500).json({ erro: "Erro ao buscar falhas" });
+  }
 });
 
-module.exports = app; 
-
+// 4. Exportação para testes e inicialização do servidor
+module.exports = app;
 
 if (require.main === module) {
-    app.listen(3000, () => {
-        console.log("Servidor rodando na porta 3000");
-    });
+  app.listen(3000, () => {
+    console.log("Servidor rodando na porta 3000");
+  });
 }
-

@@ -1,0 +1,17 @@
+name: CI Pipeline - API Node.js
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Construir a Imagem Docker
+        run: docker build -t telemetria-api-imagem .

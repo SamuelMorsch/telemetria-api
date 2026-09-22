@@ -61,8 +61,12 @@ app.get('/api/falhas', (req, res) => {
     res.json(historicoDeFalhasNaNuvem);
 });
 
-// Iniciando o servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORT}`);
-    console.log(`👉 Teste no navegador: http://localhost:${PORT}/api/status`);
-});
+module.exports = app; 
+
+
+if (require.main === module) {
+    app.listen(3000, () => {
+        console.log("Servidor rodando na porta 3000");
+    });
+}
+

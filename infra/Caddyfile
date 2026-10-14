@@ -1,0 +1,15 @@
+# O Caddy obtém e renova o certificado HTTPS (Let's Encrypt) sozinho,
+# desde que o domínio aponte para este servidor e as portas 80/443 estejam abertas.
+{$DOMAIN} {
+	encode gzip
+
+	# Tudo que começa com /api vai para a API
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# Página provisória até o painel (Fase 4) entrar no ar
+	handle {
+		respond "Telemetria Automotiva Remota - TCC. Painel em construção." 200
+	}
+}

@@ -1,0 +1,66 @@
+# Stack de produção: banco + API + proxy HTTPS.
+# Uso: docker compose up -d --build   (dentro da pasta infra/)
+name: telemetria
+
+services:
+  db:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Ajustes para uma máquina de 1 GB de RAM
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c effective_cache_size=256MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=30
+      -c timescaledb.telemetry_level=off
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 300m
+    # Sem "ports": o banco NÃO fica exposto na internet, só a API o enxerga.
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 160m
+    # Sem "ports": quem fala com a API é o proxy (caddy), pela rede interna.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # guarda os certificados HTTPS
+      - caddy_config:/config
+    depends_on:
+      - api
+    mem_limit: 64m
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:

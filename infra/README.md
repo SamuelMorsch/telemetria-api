@@ -17,11 +17,19 @@ Sobe três containers numa única máquina (AWS EC2, Ubuntu, Docker):
 ```bash
 cd infra
 cp .env.example .env
-nano .env                      # defina DOMAIN e uma POSTGRES_PASSWORD forte
+nano .env                      # defina DOMAIN, POSTGRES_PASSWORD e JWT_SECRET
 docker compose up -d --build
 docker compose ps
 curl https://SEU_DOMINIO/api/health
 ```
+Documentação interativa da API: `https://SEU_DOMINIO/api/docs`.
+
+## Atualizar uma versão já instalada
+```bash
+cd ~/telemetria-api && git pull
+cd infra && docker compose up -d --build
+```
+As migrations novas são aplicadas sozinhas quando a API inicia.
 
 ## Operação
 ```bash
@@ -37,7 +45,15 @@ docker compose exec db pg_dump -U telemetria telemetria > backup_$(date +%F).sql
 ```
 
 ## Variáveis (`.env`)
-`DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`. O arquivo `.env` está no
-`.gitignore` e nunca deve ser enviado ao repositório.
+| Variável | Obrigatória | Descrição |
+|---|---|---|
+| `DOMAIN` | sim | domínio servido pelo Caddy |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | sim | credenciais do banco |
+| `JWT_SECRET` | sim | segredo (32+ caracteres) que assina os tokens de login |
+| `JWT_EXPIRES_IN` | não | validade do token (padrão `8h`) |
+| `CORS_ORIGINS` | não | origens de navegador permitidas, separadas por vírgula |
+| `REGISTRATION_ENABLED` | não | `false` fecha o cadastro público de oficinas |
+
+O arquivo `.env` está no `.gitignore` e nunca deve ser enviado ao repositório.
 
 Decisões de arquitetura: ver [`../docs/adr`](../docs/adr).

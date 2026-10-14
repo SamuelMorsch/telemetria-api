@@ -38,10 +38,14 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no arquivo .env (openssl rand -hex 32)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-true}
     depends_on:
       db:
         condition: service_healthy
-    mem_limit: 160m
+    mem_limit: 192m
     # Sem "ports": quem fala com a API é o proxy (caddy), pela rede interna.
 
   caddy:

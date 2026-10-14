@@ -1,54 +1,48 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createApp } from '../src/app.js';
-
-// Sobe a API numa porta livre, roda o teste e derruba o servidor.
-async function withServer(pool, fn) {
-  const server = createApp({ pool }).listen(0);
-  await new Promise((resolve) => server.once('listening', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  try {
-    await fn(base);
-  } finally {
-    await new Promise((resolve) => {
-      server.close(resolve);
-      server.closeAllConnections();
-    });
-  }
-}
+import { fakePool, withApp } from '../testing/helpers.js';
 
 test('GET /api/health devolve 200 quando o banco responde', async () => {
-  const pool = { query: async () => ({ rows: [{ '?column?': 1 }] }) };
-  await withServer(pool, async (base) => {
-    const res = await fetch(`${base}/api/health`);
+  await withApp(fakePool([[/SELECT 1/, { rows: [{ '?column?': 1 }] }]]), async (call) => {
+    const res = await call('GET', '/api/health');
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { status: 'ok', database: 'up' });
+    assert.deepEqual(res.body, { status: 'ok', database: 'up' });
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
   });
 });
 
 test('GET /api/health devolve 503 quando o banco falha', async () => {
-  const pool = { query: async () => { throw new Error('conexão recusada'); } };
-  await withServer(pool, async (base) => {
-    const res = await fetch(`${base}/api/health`);
+  const pool = fakePool([[/SELECT 1/, () => { throw new Error('conexão recusada'); }]]);
+  await withApp(pool, async (call) => {
+    const res = await call('GET', '/api/health');
     assert.equal(res.status, 503);
-    assert.deepEqual(await res.json(), { status: 'degraded', database: 'down' });
+    assert.deepEqual(res.body, { status: 'degraded', database: 'down' });
   });
 });
 
 test('rota inexistente devolve 404', async () => {
-  await withServer({ query: async () => ({ rows: [] }) }, async (base) => {
-    const res = await fetch(`${base}/api/nao-existe`);
-    assert.equal(res.status, 404);
+  await withApp(fakePool(), async (call) => {
+    assert.equal((await call('GET', '/api/nao-existe')).status, 404);
   });
 });
 
 test('JSON inválido devolve 400, não 500', async () => {
-  await withServer({ query: async () => ({ rows: [] }) }, async (base) => {
-    const res = await fetch(`${base}/api/health`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{quebrado',
-    });
+  await withApp(fakePool(), async (call) => {
+    const res = await call('POST', '/api/auth/login', { raw: '{quebrado' });
     assert.equal(res.status, 400);
+    assert.equal(res.body.error, 'bad_request');
+  });
+});
+
+test('documentação: /api/openapi.json e /api/docs respondem', async () => {
+  await withApp(fakePool(), async (call) => {
+    const spec = await call('GET', '/api/openapi.json');
+    assert.equal(spec.status, 200);
+    assert.equal(spec.body.openapi, '3.0.3');
+    assert.ok(spec.body.paths['/api/auth/login']);
+
+    const docs = await call('GET', '/api/docs/');
+    assert.equal(docs.status, 200);
+    assert.match(docs.text, /swagger/i);
   });
 });

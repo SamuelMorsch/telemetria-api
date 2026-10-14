@@ -26,5 +26,6 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
       await pool.end();
       process.exit(0);
     });
+    server.closeAllConnections(); // fecha também as transmissões ao vivo (SSE), que nunca terminam sozinhas
   });
 }

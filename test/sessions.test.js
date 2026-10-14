@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createAuth } from '../src/auth.js';
+import { LiveBus } from '../src/live.js';
 import { fakePool, withApp, testConfig, USER_ID, WORKSHOP_ID, VEHICLE_ID, SESSION_ID } from '../testing/helpers.js';
 
 const tokenFor = (role = 'driver') => createAuth(testConfig).signToken({ id: USER_ID, workshop_id: WORKSHOP_ID, role });
@@ -80,18 +81,35 @@ test('limite acima de 200 é recusado', async () => {
   });
 });
 
-test('encerra a sessão: 200 e 404 quando não é da oficina', async () => {
+test('encerra a sessão: analisa as leituras, grava a anomalia e devolve a contagem; 404 se não for da oficina', async () => {
+  const t = (sec) => new Date(Date.parse('2026-10-14T12:00:00Z') + sec * 1000);
+  const readings = [
+    { time: t(0), battery_voltage: 14.2, control_module_voltage: null, rpm: 2500 },
+    { time: t(1), battery_voltage: 11.5, control_module_voltage: null, rpm: 4000 },
+    { time: t(2), battery_voltage: 11.4, control_module_voltage: null, rpm: 4000 },
+    { time: t(3), battery_voltage: 14.2, control_module_voltage: null, rpm: 2500 },
+  ];
   const pool = fakePool([
     [/UPDATE monitoring_sessions/, (params) =>
       params[0] === SESSION_ID ? { rows: [{ ...session, ended_at: '2026-10-14T13:00:00Z' }] } : { rows: [] }],
+    [/FROM readings/, { rows: readings }],
+    [/DELETE FROM anomaly_events/, { rows: [] }],
+    [/INSERT INTO anomaly_events/, { rows: [] }],
   ]);
+  const bus = new LiveBus();
+  const heard = [];
+  bus.subscribe(SESSION_ID, (m) => heard.push(m));
+
   await withApp(pool, async (call) => {
     const token = await tokenFor();
     const ok = await call('PATCH', `/api/sessions/${SESSION_ID}/end`, { token, body: { ended_at: '2026-10-14T13:00:00Z' } });
     assert.equal(ok.status, 200);
     assert.ok(ok.body.ended_at);
+    assert.equal(ok.body.anomalies_detected, 1);
+    assert.ok(pool.calls.some((c) => /INSERT INTO anomaly_events/.test(c.sql)));
+    assert.equal(heard.at(-1).event, 'ended'); // os painéis ao vivo são avisados
 
     const missing = await call('PATCH', '/api/sessions/55555555-5555-4555-8555-555555555555/end', { token });
     assert.equal(missing.status, 404);
-  });
+  }, undefined, { bus });
 });

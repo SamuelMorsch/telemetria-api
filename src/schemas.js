@@ -69,3 +69,42 @@ export const listSessionsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+// ---- Telemetria ----
+const metric = (min, max) => z.number().min(min).max(max).nullable().optional();
+const intMetric = (min, max) => z.number().int().min(min).max(max).nullable().optional();
+
+const readingSchema = z.object({
+  seq: z.number().int().min(0).max(2_000_000_000),
+  time: timestamp,
+  battery_voltage: metric(0, 40),
+  control_module_voltage: metric(0, 40),
+  rpm: intMetric(0, 20000),
+  speed_kmh: intMetric(0, 400),
+  coolant_temp_c: intMetric(-60, 300),
+});
+
+export const readingsBatchSchema = z.object({
+  readings: z.array(readingSchema).min(1).max(500),
+});
+
+export const readingsQuery = z.object({
+  from: timestamp.optional(),
+  to: timestamp.optional(),
+  limit: z.coerce.number().int().min(1).max(5000).default(1000),
+  order: z.enum(['asc', 'desc']).default('asc'),
+  bucket: z.coerce.number().int().min(1).max(3600).optional(),
+});
+
+export const anomalyParams = z.object({
+  voltage_min: z.coerce.number().min(5).max(20).default(13),
+  rpm_min: z.coerce.number().int().min(0).max(10000).default(700),
+  min_samples: z.coerce.number().int().min(1).max(100).default(2),
+  max_gap_s: z.coerce.number().min(1).max(300).default(10),
+});
+
+export const listAnomaliesQuery = z.object({
+  vehicle_id: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});

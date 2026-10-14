@@ -35,8 +35,8 @@ export function fakePool(routes = []) {
 }
 
 /** Sobe a API numa porta livre e entrega a `call(method, path, { token, body })` ao teste. */
-export async function withApp(pool, fn, config = testConfig) {
-  const server = createApp({ pool, config }).listen(0);
+export async function withApp(pool, fn, config = testConfig, extras = {}) {
+  const server = createApp({ pool, config, ...extras }).listen(0);
   await new Promise((resolve) => server.once('listening', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
 
@@ -56,7 +56,7 @@ export async function withApp(pool, fn, config = testConfig) {
   };
 
   try {
-    await fn(call);
+    await fn(call, { base });
   } finally {
     await new Promise((resolve) => {
       server.close(resolve);

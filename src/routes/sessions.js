@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { HttpError } from '../errors.js';
+import { refreshStoredAnomalies } from '../anomalies.js';
 import { parse, idParam, createSessionSchema, endSessionSchema, listSessionsQuery } from '../schemas.js';
 
 const COLUMNS = 'id, vehicle_id, started_at, ended_at, source, app_version, created_at';
 const COLUMNS_S = 's.id, s.vehicle_id, s.started_at, s.ended_at, s.source, s.app_version, s.created_at';
 
 // Sessão = um trajeto monitorado. O app gera o UUID, então repetir o POST é seguro.
-export function sessionsRouter({ pool }) {
+export function sessionsRouter({ pool, bus, metrics }) {
   const router = Router();
 
   router.post('/', async (req, res) => {
@@ -79,7 +80,18 @@ export function sessionsRouter({ pool }) {
       [id, req.user.workshopId, endedAt ?? null],
     );
     if (rows.length === 0) throw new HttpError(404, 'session_not_found', 'Sessão não encontrada.');
-    res.json(rows[0]);
+
+    // Ao encerrar, procura quedas de tensão e grava os eventos. Se a análise falhar,
+    // a sessão continua encerrada (a análise pode ser refeita depois).
+    let anomalies = 0;
+    try {
+      anomalies = (await refreshStoredAnomalies(pool, id)).length;
+      metrics.anomaliesStored.inc({}, anomalies);
+    } catch (err) {
+      console.error('falha ao analisar a sessão', id, err);
+    }
+    bus.publish(id, { event: 'ended', data: { ended_at: rows[0].ended_at, anomalies_detected: anomalies } });
+    res.json({ ...rows[0], anomalies_detected: anomalies });
   });
 
   return router;

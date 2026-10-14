@@ -3,9 +3,12 @@
 {$DOMAIN} {
 	encode gzip
 
-	# Tudo que começa com /api vai para a API
+	# Tudo que começa com /api vai para a API.
+	# flush_interval -1 envia cada pedaço da resposta na hora (necessário para o tempo real / SSE).
 	handle /api/* {
-		reverse_proxy api:3000
+		reverse_proxy api:3000 {
+			flush_interval -1
+		}
 	}
 
 	# Página provisória até o painel (Fase 4) entrar no ar

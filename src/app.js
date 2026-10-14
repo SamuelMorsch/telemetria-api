@@ -7,17 +7,22 @@ import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { vehiclesRouter } from './routes/vehicles.js';
 import { sessionsRouter } from './routes/sessions.js';
+import { telemetryRouter } from './routes/telemetry.js';
+import { anomaliesRouter } from './routes/anomalies.js';
+import { LiveBus } from './live.js';
+import { createMetrics } from './metrics.js';
 import { cors, rateLimit, securityHeaders } from './security.js';
 
 /**
  * Monta a aplicação. Recebe o pool do banco e a config por parâmetro
  * (injeção de dependência), então os testes usam um banco falso.
  */
-export function createApp({ pool, config }) {
+export function createApp({ pool, config, bus = new LiveBus(), metrics = createMetrics({ bus }) }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // atrás do Caddy: req.ip vem do X-Forwarded-For
 
+  app.use(metrics.middleware);
   app.use(securityHeaders);
   app.use(cors(config.corsOrigins));
   app.use(rateLimit({ windowMs: 60_000, max: 300, keyPrefix: 'geral:' }));
@@ -35,6 +40,12 @@ export function createApp({ pool, config }) {
     }
   });
 
+  // Métricas para o Prometheus. O Caddy só encaminha /api/*, então isto NÃO é público:
+  // fica acessível apenas dentro da rede do Docker.
+  app.get('/metrics', (_req, res) => {
+    res.type('text/plain; version=0.0.4').send(metrics.registry.render());
+  });
+
   // Documentação interativa (Swagger UI) e a especificação OpenAPI
   app.get('/api/openapi.json', (_req, res) => res.json(openapi));
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'Telemetria API' }));
@@ -45,7 +56,13 @@ export function createApp({ pool, config }) {
   // Rotas protegidas
   app.use('/api/users', auth.requireAuth, usersRouter({ pool, auth }));
   app.use('/api/vehicles', auth.requireAuth, vehiclesRouter({ pool, auth }));
-  app.use('/api/sessions', auth.requireAuth, sessionsRouter({ pool }));
+  app.use(
+    '/api/sessions',
+    auth.requireAuth,
+    sessionsRouter({ pool, bus, metrics }),
+    telemetryRouter({ pool, bus, metrics }),
+  );
+  app.use('/api/anomalies', auth.requireAuth, anomaliesRouter({ pool }));
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'not_found' });

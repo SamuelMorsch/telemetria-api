@@ -22,6 +22,8 @@ export const openapi = {
     { name: 'Usuários' },
     { name: 'Veículos' },
     { name: 'Sessões' },
+    { name: 'Telemetria' },
+    { name: 'Anomalias' },
   ],
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
@@ -56,6 +58,29 @@ export const openapi = {
           model: { type: 'string', nullable: true },
           owner_name: { type: 'string', nullable: true },
           created_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      Reading: {
+        type: 'object',
+        required: ['seq', 'time'],
+        properties: {
+          seq: { type: 'integer', minimum: 0, description: 'Número sequencial da leitura dentro da sessão' },
+          time: { type: 'string', format: 'date-time', description: 'Instante da leitura, medido no celular' },
+          battery_voltage: { type: 'number', nullable: true, description: 'Volts (ELM327 AT RV)' },
+          control_module_voltage: { type: 'number', nullable: true, description: 'Volts (PID 01 42)' },
+          rpm: { type: 'integer', nullable: true },
+          speed_kmh: { type: 'integer', nullable: true },
+          coolant_temp_c: { type: 'integer', nullable: true },
+        },
+      },
+      AnomalyEvent: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', example: 'voltage_drop' },
+          started_at: { type: 'string', format: 'date-time' },
+          ended_at: { type: 'string', format: 'date-time' },
+          min_value: { type: 'number', example: 11.47 },
+          details: { type: 'object', example: { samples: 10, max_rpm: 4050, threshold_v: 13 } },
         },
       },
       Session: {
@@ -264,10 +289,107 @@ export const openapi = {
         },
       },
     },
+
+    '/api/sessions/{id}/readings': {
+      post: {
+        tags: ['Telemetria'],
+        summary: 'Envia um lote de leituras (até 500). Reenviar o mesmo lote não duplica.',
+        security: auth,
+        parameters: [idPath],
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['readings'],
+            properties: { readings: { type: 'array', maxItems: 500, items: ref('Reading') } },
+            example: {
+              readings: [
+                { seq: 0, time: '2026-10-14T12:00:00Z', battery_voltage: 14.2, rpm: 2500, speed_kmh: 62, coolant_temp_c: 90 },
+                { seq: 1, time: '2026-10-14T12:00:01Z', battery_voltage: 11.5, rpm: 4000, speed_kmh: 100, coolant_temp_c: 90 },
+              ],
+            },
+          }),
+        },
+        responses: {
+          201: { description: 'Leituras novas gravadas', content: json({ type: 'object', example: { received: 2, inserted: 2, duplicates: 0 } }) },
+          200: { description: 'Todas já existiam (reenvio)' },
+          400: err('Dados inválidos'),
+          404: err('Sessão não encontrada'),
+        },
+      },
+      get: {
+        tags: ['Telemetria'],
+        summary: 'Histórico de leituras, brutas ou resumidas por intervalo (bucket)',
+        security: auth,
+        parameters: [
+          idPath,
+          { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 1000, maximum: 5000 } },
+          { name: 'order', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'asc' } },
+          { name: 'bucket', in: 'query', description: 'Se informado (segundos), devolve mínimo/média/máximo por intervalo', schema: { type: 'integer', minimum: 1, maximum: 3600 } },
+        ],
+        responses: {
+          200: { description: 'OK', content: json({ type: 'array', items: { type: 'object' } }) },
+          404: err('Sessão não encontrada'),
+        },
+      },
+    },
+    '/api/sessions/{id}/anomalies': {
+      get: {
+        tags: ['Anomalias'],
+        summary: 'Quedas de tensão com o motor girando, calculadas na hora',
+        description: 'Os limites são ajustáveis por parâmetro; os padrões são pontos de partida a calibrar em campo.',
+        security: auth,
+        parameters: [
+          idPath,
+          { name: 'voltage_min', in: 'query', schema: { type: 'number', default: 13 }, description: 'Abaixo disso (com o motor girando) é queda' },
+          { name: 'rpm_min', in: 'query', schema: { type: 'integer', default: 700 }, description: 'Rotação mínima para considerar o motor girando' },
+          { name: 'min_samples', in: 'query', schema: { type: 'integer', default: 2 }, description: 'Leituras seguidas necessárias' },
+          { name: 'max_gap_s', in: 'query', schema: { type: 'number', default: 10 }, description: 'Buraco máximo entre leituras da mesma queda' },
+        ],
+        responses: {
+          200: {
+            description: 'OK',
+            content: json({ type: 'object', properties: { parameters: { type: 'object' }, events: { type: 'array', items: ref('AnomalyEvent') } } }),
+          },
+          404: err('Sessão não encontrada'),
+        },
+      },
+    },
+    '/api/sessions/{id}/stream': {
+      get: {
+        tags: ['Telemetria'],
+        summary: 'Transmissão ao vivo (Server-Sent Events)',
+        description:
+          'Eventos: `ready`, `readings` (leituras novas), `ended` (sessão encerrada). Envia um comentário `: ping` a cada 15 s. ' +
+          'Precisa do cabeçalho Authorization, então leia com fetch (não com EventSource). O Swagger não exibe streams: teste com `curl -N`.',
+        security: auth,
+        parameters: [idPath],
+        responses: {
+          200: { description: 'Fluxo text/event-stream' },
+          404: err('Sessão não encontrada'),
+          503: err('Limite de transmissões atingido'),
+        },
+      },
+    },
+    '/api/anomalies': {
+      get: {
+        tags: ['Anomalias'],
+        summary: 'Eventos de anomalia já gravados (gerados ao encerrar cada sessão)',
+        security: auth,
+        parameters: [
+          { name: 'vehicle_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 200 } },
+          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+        ],
+        responses: { 200: { description: 'OK', content: json({ type: 'array', items: { type: 'object' } }) } },
+      },
+    },
     '/api/sessions/{id}/end': {
       patch: {
         tags: ['Sessões'],
-        summary: 'Encerra a sessão',
+        summary: 'Encerra a sessão, procura quedas de tensão e avisa os painéis ao vivo',
         security: auth,
         parameters: [idPath],
         requestBody: {

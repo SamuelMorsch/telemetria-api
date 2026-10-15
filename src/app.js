@@ -9,6 +9,7 @@ import { vehiclesRouter } from './routes/vehicles.js';
 import { sessionsRouter } from './routes/sessions.js';
 import { telemetryRouter } from './routes/telemetry.js';
 import { anomaliesRouter } from './routes/anomalies.js';
+import { dtcsRouter } from './routes/dtcs.js';
 import { LiveBus } from './live.js';
 import { createMetrics } from './metrics.js';
 import { cors, rateLimit, securityHeaders } from './security.js';
@@ -61,6 +62,7 @@ export function createApp({ pool, config, bus = new LiveBus(), metrics = createM
     auth.requireAuth,
     sessionsRouter({ pool, bus, metrics }),
     telemetryRouter({ pool, bus, metrics }),
+    dtcsRouter({ pool, bus, metrics }),
   );
   app.use('/api/anomalies', auth.requireAuth, anomaliesRouter({ pool }));
 

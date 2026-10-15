@@ -96,10 +96,12 @@ export function createMetrics({ bus } = {}) {
   );
   const readingsIngested = registry.counter('telemetry_readings_ingested_total', 'Leituras novas gravadas.');
   const readingsDuplicate = registry.counter('telemetry_readings_duplicate_total', 'Leituras repetidas descartadas (reenvio).');
+  const dtcsIngested = registry.counter('telemetry_dtcs_ingested_total', 'Códigos de falha (DTC) novos gravados.');
   const anomaliesStored = registry.counter('telemetry_anomalies_stored_total', 'Eventos de anomalia gravados ao encerrar sessões.');
   readingsIngested.inc({}, 0);
   readingsDuplicate.inc({}, 0);
   anomaliesStored.inc({}, 0);
+  dtcsIngested.inc({}, 0);
 
   /** Middleware: mede cada requisição quando a resposta termina. */
   function middleware(req, res, next) {
@@ -119,6 +121,7 @@ export function createMetrics({ bus } = {}) {
     readingsIngested,
     readingsDuplicate,
     anomaliesStored,
+    dtcsIngested,
     markReading: (unixSeconds) => lastReading.set(unixSeconds),
   };
 }

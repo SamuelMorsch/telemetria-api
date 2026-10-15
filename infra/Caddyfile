@@ -3,7 +3,7 @@
 {$DOMAIN} {
 	encode gzip
 
-	# Tudo que começa com /api vai para a API.
+	# /api vai para a API.
 	# flush_interval -1 envia cada pedaço da resposta na hora (necessário para o tempo real / SSE).
 	handle /api/* {
 		reverse_proxy api:3000 {
@@ -11,8 +11,8 @@
 		}
 	}
 
-	# Página provisória até o painel (Fase 4) entrar no ar
+	# O resto é o painel web
 	handle {
-		respond "Telemetria Automotiva Remota - TCC. Painel em construção." 200
+		reverse_proxy painel:3000
 	}
 }

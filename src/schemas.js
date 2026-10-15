@@ -108,3 +108,23 @@ export const listAnomaliesQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
+
+// ---- Códigos de falha (DTC) ----
+const dtcCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[PCBU][0-3][0-9A-F]{3}$/, 'código de falha inválido (ex.: P0562)');
+
+export const dtcBatchSchema = z.object({
+  dtcs: z
+    .array(
+      z.object({
+        code: dtcCode,
+        status: z.enum(['stored', 'pending', 'permanent']).default('stored'),
+        detected_at: timestamp,
+      }),
+    )
+    .min(1)
+    .max(50),
+});

@@ -24,6 +24,7 @@ export const openapi = {
     { name: 'Sessões' },
     { name: 'Telemetria' },
     { name: 'Anomalias' },
+    { name: 'Códigos de falha (DTC)' },
   ],
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
@@ -71,6 +72,17 @@ export const openapi = {
           rpm: { type: 'integer', nullable: true },
           speed_kmh: { type: 'integer', nullable: true },
           coolant_temp_c: { type: 'integer', nullable: true },
+        },
+      },
+      Dtc: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', example: 'P0562' },
+          status: { type: 'string', enum: ['stored', 'pending', 'permanent'], description: 'pending = o veículo detectou, mas ainda não confirmou' },
+          detected_at: { type: 'string', format: 'date-time' },
+          description: { type: 'string', example: 'Tensão do sistema baixa (bateria/alternador não mantém a carga)' },
+          electrical: { type: 'boolean', description: 'Ligado a carga, bateria ou motor de partida' },
+          scope: { type: 'string', enum: ['generic', 'manufacturer', 'mixed', 'unknown'] },
         },
       },
       AnomalyEvent: {
@@ -335,6 +347,52 @@ export const openapi = {
         },
       },
     },
+    '/api/sessions/{id}/dtcs': {
+      post: {
+        tags: ['Códigos de falha (DTC)'],
+        summary: 'Envia códigos de falha lidos do veículo (até 50). Reenviar não duplica.',
+        security: auth,
+        parameters: [idPath],
+        requestBody: {
+          required: true,
+          content: json({
+            type: 'object',
+            required: ['dtcs'],
+            properties: {
+              dtcs: {
+                type: 'array',
+                maxItems: 50,
+                items: {
+                  type: 'object',
+                  required: ['code', 'detected_at'],
+                  properties: {
+                    code: { type: 'string', example: 'P0562' },
+                    status: { type: 'string', enum: ['stored', 'pending', 'permanent'], default: 'stored' },
+                    detected_at: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+            },
+          }),
+        },
+        responses: {
+          201: { description: 'Códigos novos gravados', content: json({ type: 'object', example: { received: 2, inserted: 2, duplicates: 0 } }) },
+          200: { description: 'Todos já existiam' },
+          400: err('Dados inválidos'),
+          404: err('Sessão não encontrada'),
+        },
+      },
+      get: {
+        tags: ['Códigos de falha (DTC)'],
+        summary: 'Códigos de falha da sessão, com a descrição em português',
+        security: auth,
+        parameters: [idPath],
+        responses: {
+          200: { description: 'OK', content: json({ type: 'array', items: ref('Dtc') }) },
+          404: err('Sessão não encontrada'),
+        },
+      },
+    },
     '/api/sessions/{id}/anomalies': {
       get: {
         tags: ['Anomalias'],
@@ -362,7 +420,7 @@ export const openapi = {
         tags: ['Telemetria'],
         summary: 'Transmissão ao vivo (Server-Sent Events)',
         description:
-          'Eventos: `ready`, `readings` (leituras novas), `ended` (sessão encerrada). Envia um comentário `: ping` a cada 15 s. ' +
+          'Eventos: `ready`, `readings` (leituras novas), `dtcs` (códigos de falha novos), `ended` (sessão encerrada). Envia um comentário `: ping` a cada 15 s. ' +
           'Precisa do cabeçalho Authorization, então leia com fetch (não com EventSource). O Swagger não exibe streams: teste com `curl -N`.',
         security: auth,
         parameters: [idPath],

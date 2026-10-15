@@ -1,4 +1,4 @@
-# Stack de produção: banco + API + proxy HTTPS.
+# Stack de produção: banco + API + painel + proxy HTTPS.
 # Uso: docker compose up -d --build   (dentro da pasta infra/)
 name: telemetria
 
@@ -48,6 +48,21 @@ services:
     mem_limit: 192m
     # Sem "ports": quem fala com a API é o proxy (caddy), pela rede interna.
 
+  painel:
+    # Imagem construída no CI do repositório do painel e publicada no GitHub Container Registry.
+    image: ghcr.io/samuelmorsch/painel-telemetria-web:${PAINEL_TAG:-main}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 200m
+    # Sem "ports": o Caddy encaminha o tráfego pela rede interna.
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -62,6 +77,7 @@ services:
       - caddy_config:/config
     depends_on:
       - api
+      - painel
     mem_limit: 64m
 
 volumes:

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { HttpError } from '../errors.js';
+import { findOwnSession } from '../session-access.js';
 import { detectVoltageDrops, loadReadingsForAnalysis } from '../anomalies.js';
 import { parse, idParam, readingsBatchSchema, readingsQuery, anomalyParams } from '../schemas.js';
 
@@ -10,17 +11,7 @@ export function telemetryRouter({ pool, bus, metrics }) {
   const router = Router();
 
   // Confirma que a sessão existe E pertence à oficina do token.
-  async function ownSession(id, workshopId) {
-    const { rows } = await pool.query(
-      `SELECT s.id, s.vehicle_id, s.started_at, s.ended_at
-         FROM monitoring_sessions s
-         JOIN vehicles v ON v.id = s.vehicle_id
-        WHERE s.id = $1 AND v.workshop_id = $2`,
-      [id, workshopId],
-    );
-    if (rows.length === 0) throw new HttpError(404, 'session_not_found', 'Sessão não encontrada.');
-    return rows[0];
-  }
+  const ownSession = (id, workshopId) => findOwnSession(pool, id, workshopId);
 
   // Recebe um LOTE de leituras. Reenviar o mesmo lote não duplica nada.
   router.post('/:id/readings', async (req, res) => {

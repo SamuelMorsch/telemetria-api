@@ -43,6 +43,8 @@ copie o `token` da resposta, clique em **Authorize** e cole o token.
 | GET | `/api/sessions/:id/readings` | logado | histórico bruto ou resumido (`bucket`) |
 | GET | `/api/sessions/:id/anomalies` | logado | quedas de tensão, calculadas na hora, limites ajustáveis |
 | GET | `/api/sessions/:id/stream` | logado | transmissão ao vivo (Server-Sent Events) |
+| POST | `/api/sessions/:id/dtcs` | logado | envia códigos de falha (idempotente) |
+| GET | `/api/sessions/:id/dtcs` | logado | códigos da sessão com descrição em português |
 | GET | `/api/anomalies` | logado | eventos de anomalia gravados da oficina |
 | GET | `/metrics` | interno | métricas Prometheus (não exposto pelo Caddy) |
 
@@ -57,9 +59,19 @@ copie o `token` da resposta, clique em **Authorize** e cole o token.
    rpm >= 700, por pelo menos 2 leituras seguidas). Roda ao encerrar a sessão e sob demanda, e os
    limites são ajustáveis por parâmetro. Os padrões são pontos de partida para calibrar em campo.
 
+## Códigos de falha (DTC)
+Além da tensão, o app lê os códigos que a central do veículo registrou (modo 03, confirmados; modo 07,
+**pendentes**, detectados mas ainda não confirmados, o que ajuda em defeitos intermitentes).
+A API guarda cada código com seu estado (`stored`, `pending` ou `permanent`) e devolve a descrição
+em português a partir de um dicionário próprio ([`src/dtc.js`](src/dtc.js)) com os códigos genéricos
+mais comuns, em especial os de **carga, bateria e partida** (P0560 a P0563, P0615 a P0622), marcados
+como `electrical`. Códigos fora do dicionário são explicados pela estrutura (sistema, tipo e subsistema).
+O painel mostra os códigos ao lado do gráfico de tensão.
+
 ## Simulador (demonstração)
 Sem um carro à mão, `scripts/simulate.js` envia leituras de um alternador defeituoso
-(14,2 V para 11,5 V a ~4000 rpm), usando a API de verdade:
+(14,2 V para 11,5 V a ~4000 rpm) e os códigos de falha correspondentes (P0562 pendente, depois
+P0562 e P0622 confirmados), usando a API de verdade:
 ```bash
 node scripts/simulate.js --url https://SEU_DOMINIO --email EMAIL --password SENHA          # tempo real
 node scripts/simulate.js --url https://SEU_DOMINIO --email EMAIL --password SENHA --fast   # de uma vez

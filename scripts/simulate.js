@@ -32,6 +32,19 @@ export function generateReading(i, { dropStartS = 45, dropEndS = 55 } = {}) {
   };
 }
 
+/**
+ * Códigos de falha que um alternador com regulador defeituoso costuma gerar: o carro vê a tensão
+ * cair (P0562 PENDENTE), e logo depois confirma P0562 e registra P0622 (campo do gerador).
+ * `at(i)` converte o segundo da simulação em instante.
+ */
+export function generateDtcs({ dropStartS = 45, dropEndS = 55 } = {}) {
+  return [
+    { code: 'P0562', status: 'pending', second: dropStartS + 3 },
+    { code: 'P0562', status: 'stored', second: dropEndS },
+    { code: 'P0622', status: 'stored', second: dropEndS },
+  ];
+}
+
 function parseArgs(argv) {
   const args = { duration: 120, dropStart: 45, dropEnd: 55, plate: 'SIM0001', fast: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -93,6 +106,7 @@ async function main() {
 
   const BATCH = args.fast ? 100 : 5;
   const opts = { dropStartS: args.dropStart, dropEndS: args.dropEnd };
+  let pendingDtcs = generateDtcs(opts);
   for (let from = 0; from < args.duration; from += BATCH) {
     const readings = [];
     for (let i = from; i < Math.min(from + BATCH, args.duration); i += 1) {
@@ -102,6 +116,16 @@ async function main() {
     const sent = await call('POST', `/api/sessions/${sessionId}/readings`, { readings });
     if (sent.status >= 300) throw new Error(`envio falhou (${sent.status}): ${JSON.stringify(sent.json)}`);
     console.log(`enviadas ${readings.length} leituras (${from}-${from + readings.length - 1}) -> ${JSON.stringify(sent.json)}`);
+
+    // Envia os códigos de falha cujo instante já passou
+    const lastSecond = from + readings.length - 1;
+    const due = pendingDtcs.filter((d) => d.second <= lastSecond);
+    if (due.length > 0) {
+      pendingDtcs = pendingDtcs.filter((d) => d.second > lastSecond);
+      const dtcs = due.map((d) => ({ code: d.code, status: d.status, detected_at: new Date(startMs + d.second * 1000).toISOString() }));
+      const sentDtcs = await call('POST', `/api/sessions/${sessionId}/dtcs`, { dtcs });
+      console.log(`enviados ${dtcs.length} códigos de falha (${dtcs.map((d) => `${d.code}/${d.status}`).join(', ')}) -> ${JSON.stringify(sentDtcs.json)}`);
+    }
   }
 
   const ended = await call('PATCH', `/api/sessions/${sessionId}/end`, { ended_at: new Date(startMs + args.duration * 1000).toISOString() });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateReading } from '../scripts/simulate.js';
+import { generateDtcs, generateReading } from '../scripts/simulate.js';
 import { detectVoltageDrops } from '../src/anomalies.js';
 
 const series = (n, opts) => Array.from({ length: n }, (_, i) => ({
@@ -28,4 +28,11 @@ test('a queda simulada (11,5 V a ~4000 rpm) é encontrada pelo detector, e só e
 
 test('sem a janela de defeito, não há anomalia', () => {
   assert.deepEqual(detectVoltageDrops(series(120, { dropStartS: 500, dropEndS: 510 })), []);
+});
+
+test('o simulador gera os códigos de falha coerentes com a queda de tensão', () => {
+  const dtcs = generateDtcs({ dropStartS: 45, dropEndS: 55 });
+  assert.deepEqual(dtcs.map((d) => `${d.code}/${d.status}`), ['P0562/pending', 'P0562/stored', 'P0622/stored']);
+  assert.ok(dtcs[0].second > 45 && dtcs[0].second < 55); // o pendente aparece DURANTE a queda
+  assert.equal(dtcs[1].second, 55);                       // o confirmado, quando ela termina
 });

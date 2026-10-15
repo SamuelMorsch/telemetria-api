@@ -113,3 +113,15 @@ test('encerra a sessão: analisa as leituras, grava a anomalia e devolve a conta
     assert.equal(missing.status, 404);
   }, undefined, { bus });
 });
+
+test('listagem e detalhe trazem o instante da última leitura (para distinguir "ao vivo" de "sem sinal")', async () => {
+  const pool = fakePool([[/FROM monitoring_sessions s/, { rows: [{ ...session, last_reading_at: '2026-10-14T12:00:09Z' }] }]]);
+  await withApp(pool, async (call) => {
+    const token = await tokenFor();
+    const list = await call('GET', '/api/sessions', { token });
+    assert.equal(list.body[0].last_reading_at, '2026-10-14T12:00:09Z');
+    const one = await call('GET', `/api/sessions/${SESSION_ID}`, { token });
+    assert.equal(one.status, 200);
+    for (const c of pool.calls) assert.match(c.sql, /last_reading_at/);
+  });
+});

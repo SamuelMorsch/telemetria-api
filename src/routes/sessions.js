@@ -5,6 +5,8 @@ import { parse, idParam, createSessionSchema, endSessionSchema, listSessionsQuer
 
 const COLUMNS = 'id, vehicle_id, started_at, ended_at, source, app_version, created_at';
 const COLUMNS_S = 's.id, s.vehicle_id, s.started_at, s.ended_at, s.source, s.app_version, s.created_at';
+// Quando chegou a última leitura: permite ao painel distinguir "ao vivo" de "aberta, mas sem sinal".
+const LAST_READING = ', (SELECT max(r.time) FROM readings r WHERE r.session_id = s.id) AS last_reading_at';
 
 // Sessão = um trajeto monitorado. O app gera o UUID, então repetir o POST é seguro.
 export function sessionsRouter({ pool, bus, metrics }) {
@@ -43,7 +45,7 @@ export function sessionsRouter({ pool, bus, metrics }) {
   router.get('/', async (req, res) => {
     const q = parse(listSessionsQuery, req.query);
     const { rows } = await pool.query(
-      `SELECT ${COLUMNS_S}
+      `SELECT ${COLUMNS_S}${LAST_READING}
          FROM monitoring_sessions s
          JOIN vehicles v ON v.id = s.vehicle_id
         WHERE v.workshop_id = $1 AND ($2::uuid IS NULL OR s.vehicle_id = $2::uuid)
@@ -57,7 +59,7 @@ export function sessionsRouter({ pool, bus, metrics }) {
   router.get('/:id', async (req, res) => {
     const id = parse(idParam, req.params.id);
     const { rows } = await pool.query(
-      `SELECT ${COLUMNS_S}
+      `SELECT ${COLUMNS_S}${LAST_READING}
          FROM monitoring_sessions s
          JOIN vehicles v ON v.id = s.vehicle_id
         WHERE s.id = $1 AND v.workshop_id = $2`,

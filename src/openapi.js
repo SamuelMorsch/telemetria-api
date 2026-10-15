@@ -102,6 +102,7 @@ export const openapi = {
           vehicle_id: { type: 'string', format: 'uuid' },
           started_at: { type: 'string', format: 'date-time' },
           ended_at: { type: 'string', format: 'date-time', nullable: true },
+          last_reading_at: { type: 'string', format: 'date-time', nullable: true, description: 'Instante da última leitura recebida (só nas consultas de sessão)' },
           source: { type: 'string', enum: ['obd', 'simulator'] },
           app_version: { type: 'string', nullable: true },
           created_at: { type: 'string', format: 'date-time' },

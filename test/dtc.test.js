@@ -54,3 +54,12 @@ test('código inválido não quebra', () => {
     assert.equal(r.description, 'Código de falha inválido.');
   }
 });
+
+test('P0043 (aquecedor do sensor de oxigênio, banco 1 sensor 3, sinal baixo) é conhecido e não é de carga elétrica', () => {
+  const r = describeDtc('P0043');
+  assert.equal(r.known, true);
+  assert.match(r.description, /aquecedor do sensor de oxigênio/);
+  assert.match(r.description, /banco 1, sensor 3/);
+  assert.match(r.description, /sinal baixo/);
+  assert.equal(r.electrical, false); // é um circuito do motor, não de carga/bateria
+});

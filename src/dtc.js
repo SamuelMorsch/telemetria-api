@@ -5,6 +5,22 @@
  * próprio código (ver `describeDtc`). Não é um catálogo completo.
  */
 const DESCRIPTIONS = {
+  // Aquecedor do sensor de oxigênio (circuito de controle)
+  P0030: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 1)',
+  P0031: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 1) com sinal baixo',
+  P0032: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 1) com sinal alto',
+  P0036: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 2)',
+  P0037: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 2) com sinal baixo',
+  P0038: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 2) com sinal alto',
+  P0042: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 3)',
+  P0043: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 3) com sinal baixo',
+  P0044: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 1, sensor 3) com sinal alto',
+  P0050: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 1)',
+  P0051: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 1) com sinal baixo',
+  P0052: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 1) com sinal alto',
+  P0056: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 2)',
+  P0057: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 2) com sinal baixo',
+  P0058: 'Circuito de controle do aquecedor do sensor de oxigênio (banco 2, sensor 2) com sinal alto',
   // Ar, combustível e sensores
   P0087: 'Pressão do trilho/sistema de combustível muito baixa',
   P0088: 'Pressão do trilho/sistema de combustível muito alta',

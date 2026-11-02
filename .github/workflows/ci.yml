@@ -1,17 +1,65 @@
-name: CI Pipeline - API Node.js
+name: CI - API
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancela execuções antigas da mesma branch quando chega um commit novo.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  testes:
+    name: Testes automatizados
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Construir a Imagem Docker
-        run: docker build -t telemetria-api-imagem .
+      - name: Node.js 22 (mesma versão do Dockerfile)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Testes (com cobertura)
+        run: npm test
+
+  imagem:
+    name: Imagem Docker
+    needs: testes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      ACTOR: ${{ github.actor }}
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # Em pull request só valida que a imagem constrói; só publica quando o código chega na main.
+      - name: Build da imagem (validação)
+        if: github.event_name == 'pull_request'
+        run: docker build -t telemetria-api:pr .
+
+      - name: Login no GitHub Container Registry
+        if: github.event_name == 'push'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Build e publicação da imagem
+        if: github.event_name == 'push'
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/telemetria-api"
+          docker build -t "$IMAGE:main" -t "$IMAGE:${GITHUB_SHA::7}" .
+          docker push "$IMAGE:main"
+          docker push "$IMAGE:${GITHUB_SHA::7}"

@@ -5,7 +5,7 @@ Sobe quatro containers numa única máquina (AWS EC2, Ubuntu, Docker):
 | Serviço | Imagem | Função | Exposto na internet? |
 |---|---|---|---|
 | `db` | timescale/timescaledb (PostgreSQL 16) | banco de dados | não |
-| `api` | construída a partir do `Dockerfile` da raiz | API REST | não (só via proxy) |
+| `api` | `ghcr.io/samuelmorsch/telemetria-api` (imagem do CI da API) | API REST | não (só via proxy) |
 | `painel` | `ghcr.io/samuelmorsch/painel-telemetria-web` (imagem do CI do painel) | painel web (Next.js) | não (só via proxy) |
 | `caddy` | caddy:2-alpine | proxy reverso + HTTPS automático: `/api` vai para a API, o resto para o painel | sim, portas 80 e 443 |
 
@@ -19,23 +19,43 @@ Sobe quatro containers numa única máquina (AWS EC2, Ubuntu, Docker):
 cd infra
 cp .env.example .env
 nano .env                      # defina DOMAIN, POSTGRES_PASSWORD e JWT_SECRET
-docker compose up -d --build
+docker compose up -d
 docker compose ps
 curl https://SEU_DOMINIO/api/health
 ```
 Documentação interativa da API: `https://SEU_DOMINIO/api/docs`.
 
 ## Atualizar uma versão já instalada
+
+O CI (GitHub Actions) testa o código e publica as imagens da API e do painel no GitHub Container
+Registry a cada merge na `main`. O servidor **busca** as imagens novas (o GitHub nunca se conecta a ele).
+
+### Automático (recomendado)
+O script `atualizar.sh` baixa as imagens novas e recria só os containers que mudaram. Agende no cron
+do servidor para rodar a cada 5 minutos (`crontab -e`):
+
+```cron
+*/5 * * * * flock -n /tmp/telemetria-atualizar.lock sh $HOME/telemetria-api/infra/atualizar.sh >> $HOME/atualizar.log 2>&1
+```
+
+O `flock` impede duas execuções ao mesmo tempo. O histórico fica em `~/atualizar.log`.
+
+### Manual
 ```bash
-cd ~/telemetria-api && git pull
+cd ~/telemetria-api && git pull     # só necessário se o docker-compose.yml ou o Caddyfile mudaram
 cd infra
-docker compose pull painel          # baixa a imagem nova do painel (publicada pelo CI)
-docker compose up -d --build        # reconstrói a API e recria o que mudou
+sh atualizar.sh
 docker compose restart caddy        # só necessário se o Caddyfile mudou
 ```
 As migrations novas da API são aplicadas sozinhas quando ela inicia.
 
-O pacote da imagem do painel precisa estar **público** no GitHub (perfil, Packages, painel-telemetria-web,
+### Voltar para uma versão anterior
+Cada imagem também é publicada com o código curto do commit (ex.: `telemetria-api:2583d8b`).
+Defina `API_TAG` (ou `PAINEL_TAG`) no `.env` com esse código e rode `docker compose up -d`.
+Enquanto a variável estiver fixada, o `atualizar.sh` não troca a versão. Para voltar a acompanhar a
+última, apague a linha ou use `main`.
+
+As imagens (API e painel) precisam estar **públicas** no GitHub (perfil, Packages, o pacote,
 Package settings, Change visibility), ou o servidor precisa fazer `docker login ghcr.io`.
 
 ## Operação
@@ -57,6 +77,7 @@ docker compose exec db pg_dump -U telemetria telemetria > backup_$(date +%F).sql
 | `DOMAIN` | sim | domínio servido pelo Caddy |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | sim | credenciais do banco |
 | `JWT_SECRET` | sim | segredo (32+ caracteres) que assina os tokens de login |
+| `API_TAG` | não | tag da imagem da API (`main` por padrão); use o código de um commit para fixar uma versão |
 | `PAINEL_TAG` | não | tag da imagem do painel (`main` por padrão; `v2` durante o desenvolvimento) |
 | `JWT_EXPIRES_IN` | não | validade do token (padrão `8h`) |
 | `CORS_ORIGINS` | não | origens de navegador permitidas, separadas por vírgula |

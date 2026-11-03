@@ -1,5 +1,6 @@
 # Stack de produção: banco + API + painel + proxy HTTPS.
-# Uso: docker compose up -d --build   (dentro da pasta infra/)
+# Uso: docker compose up -d   (dentro da pasta infra/)
+# As imagens da API e do painel são construídas pelo CI e publicadas no GitHub Container Registry.
 name: telemetria
 
 services:
@@ -30,9 +31,9 @@ services:
     # Sem "ports": o banco NÃO fica exposto na internet, só a API o enxerga.
 
   api:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    # Imagem construída no CI do repositório da API e publicada no GitHub Container Registry.
+    # API_TAG permite fixar uma versão (ex.: o código de um commit) para voltar atrás se preciso.
+    image: ghcr.io/samuelmorsch/telemetria-api:${API_TAG:-main}
     restart: unless-stopped
     environment:
       NODE_ENV: production

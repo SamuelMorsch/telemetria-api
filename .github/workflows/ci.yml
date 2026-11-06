@@ -16,14 +16,16 @@ concurrency:
 
 jobs:
   testes:
-    name: Testes automatizados
-    runs-on: ubuntu-latest
+    name: Testes e qualidade
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
+      - name: Checkout do código (histórico completo, exigido pelo SonarQube Cloud)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Node.js 22 (mesma versão do Dockerfile)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -31,13 +33,22 @@ jobs:
       - name: Dependências
         run: npm ci
 
-      - name: Testes (com cobertura)
-        run: npm test
+      - name: Testes automatizados (com relatório de cobertura)
+        run: |
+          mkdir -p coverage
+          node --test --experimental-test-coverage \
+            --test-reporter=spec --test-reporter-destination=stdout \
+            --test-reporter=lcov --test-reporter-destination=coverage/lcov.info
+
+      - name: Análise SonarQube Cloud
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   imagem:
     name: Imagem Docker
     needs: testes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -45,7 +56,7 @@ jobs:
       ACTOR: ${{ github.actor }}
     steps:
       - name: Checkout do código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Em pull request só valida que a imagem constrói; só publica quando o código chega na main.
       - name: Build da imagem (validação)

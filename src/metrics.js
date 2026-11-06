@@ -6,7 +6,8 @@ function labelString(labels = {}, extra = {}) {
   return `{${entries.map(([k, v]) => `${k}="${escapeLabel(v)}"`).join(',')}}`;
 }
 
-const keyOf = (labels) => JSON.stringify(Object.entries(labels).sort());
+const byLabelName = ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0);
+const keyOf = (labels) => JSON.stringify(Object.entries(labels).sort(byLabelName));
 
 /** Registro mínimo de métricas (contador, gauge, histograma) com saída no formato de texto do Prometheus. */
 export function createRegistry() {

@@ -12,11 +12,13 @@ export function securityHeaders(_req, res, next) {
  * nenhum, e o navegador bloqueia. O app Android não usa CORS.
  */
 export function cors(allowedOrigins = []) {
-  const allowed = new Set(allowedOrigins);
+  const allowed = [...allowedOrigins];
   return (req, res, next) => {
     const origin = req.headers.origin;
-    if (origin && allowed.has(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
+    // Devolve o valor da própria lista configurada, nunca o texto recebido do cliente.
+    const allowedOrigin = origin ? allowed.find((item) => item === origin) : undefined;
+    if (allowedOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');

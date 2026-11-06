@@ -61,6 +61,9 @@ function parseArgs(argv) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Remove quebras de linha de valores vindos do servidor antes de imprimir (evita forjar linhas de log).
+const safe = (value) => String(value).replace(/[\r\n]+/g, ' ');
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.url || !args.email || !args.password) {
@@ -115,7 +118,7 @@ async function main() {
     if (!args.fast) await sleep(BATCH * 1000);
     const sent = await call('POST', `/api/sessions/${sessionId}/readings`, { readings });
     if (sent.status >= 300) throw new Error(`envio falhou (${sent.status}): ${JSON.stringify(sent.json)}`);
-    console.log(`enviadas ${readings.length} leituras (${from}-${from + readings.length - 1}) -> ${JSON.stringify(sent.json)}`);
+    console.log(`enviadas ${readings.length} leituras (${from}-${from + readings.length - 1}) -> ${safe(JSON.stringify(sent.json))}`);
 
     // Envia os códigos de falha cujo instante já passou
     const lastSecond = from + readings.length - 1;
@@ -124,15 +127,17 @@ async function main() {
       pendingDtcs = pendingDtcs.filter((d) => d.second > lastSecond);
       const dtcs = due.map((d) => ({ code: d.code, status: d.status, detected_at: new Date(startMs + d.second * 1000).toISOString() }));
       const sentDtcs = await call('POST', `/api/sessions/${sessionId}/dtcs`, { dtcs });
-      console.log(`enviados ${dtcs.length} códigos de falha (${dtcs.map((d) => `${d.code}/${d.status}`).join(', ')}) -> ${JSON.stringify(sentDtcs.json)}`);
+      console.log(`enviados ${dtcs.length} códigos de falha (${dtcs.map((d) => `${d.code}/${d.status}`).join(', ')}) -> ${safe(JSON.stringify(sentDtcs.json))}`);
     }
   }
 
   const ended = await call('PATCH', `/api/sessions/${sessionId}/end`, { ended_at: new Date(startMs + args.duration * 1000).toISOString() });
-  console.log(`sessão encerrada. anomalias detectadas: ${ended.json.anomalies_detected}`);
+  console.log(`sessão encerrada. anomalias detectadas: ${safe(ended.json.anomalies_detected)}`);
 
   const found = await call('GET', `/api/sessions/${sessionId}/anomalies`);
-  console.log(JSON.stringify(found.json.events, null, 2));
+  const events = Array.isArray(found.json.events) ? found.json.events : [];
+  console.log(`eventos de anomalia: ${events.length}`);
+  for (const event of events) console.log(`  ${safe(JSON.stringify(event))}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

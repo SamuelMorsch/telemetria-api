@@ -50,40 +50,51 @@ real ao mecânico, que passa a ter um "multímetro virtual e remoto".
 
 ## Arquitetura
 
-### Contexto: quem usa e o que o sistema toca
+### Contexto (C4, nível 1): quem usa e o que o sistema toca
 ```mermaid
-C4Context
-    title Contexto do sistema de telemetria automotiva remota
-    Person(motorista, "Motorista", "Dirige o veículo com o adaptador OBD-II e o aplicativo")
-    Person(mecanico, "Mecânico", "Acompanha a telemetria e diagnostica pelo painel")
-    System(sistema, "Telemetria Automotiva Remota", "Captura tensão, rotação e códigos de falha em movimento e entrega à oficina")
-    System_Ext(veiculo, "Veículo", "Centrais eletrônicas na rede CAN, acessadas pela porta OBD-II")
-    Rel(motorista, sistema, "Usa o aplicativo")
-    Rel(mecanico, sistema, "Consulta o painel", "HTTPS")
-    Rel(sistema, veiculo, "Lê dados e códigos de falha", "OBD-II")
+flowchart LR
+    motorista(["<b>Motorista</b><br/><i>[Pessoa]</i><br/>Dirige o veículo com<br/>o adaptador e o aplicativo"]):::pessoa
+    mecanico(["<b>Mecânico</b><br/><i>[Pessoa]</i><br/>Acompanha a telemetria<br/>e diagnostica pelo painel"]):::pessoa
+    sistema["<b>Telemetria Automotiva<br/>Remota</b><br/><i>[Sistema]</i><br/>Captura tensão, rotação e<br/>códigos de falha em movimento<br/>e entrega à oficina"]:::sistema
+    veiculo["<b>Veículo</b><br/><i>[Sistema externo]</i><br/>Centrais eletrônicas<br/>na rede CAN, acessadas<br/>pela porta OBD-II"]:::externo
+
+    motorista -->|"usa o aplicativo"| sistema
+    mecanico -->|"consulta o painel<br/>HTTPS"| sistema
+    sistema -->|"lê dados e<br/>códigos de falha<br/>OBD-II"| veiculo
+
+    classDef pessoa fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef sistema fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef externo fill:#8a8a8a,stroke:#6b6b6b,color:#ffffff
 ```
 
-### Contêineres: o que roda onde
+### Contêineres (C4, nível 2): o que roda onde
 ```mermaid
-C4Container
-    title Contêineres do sistema
-    Person(motorista, "Motorista")
-    Person(mecanico, "Mecânico")
-    System_Ext(adaptador, "Adaptador OBD-II", "ELM327, Bluetooth clássico (SPP)")
-    System_Boundary(sistema, "Telemetria Automotiva Remota") {
-        Container(app, "Aplicativo Android", "Flutter, Dart", "Lê o adaptador, guarda as leituras numa fila local (SQLite) e envia em lotes")
-        Container(caddy, "Caddy", "Caddy 2", "HTTPS automático e roteamento por caminho")
-        Container(api, "API REST", "Node.js 22, Express 5", "Autenticação JWT, ingestão em lote, detecção de quedas, tempo real (SSE) e métricas")
-        Container(painel, "Painel web", "Next.js 16, React 19", "Gráficos ao vivo e histórico")
-        ContainerDb(banco, "Banco de dados", "PostgreSQL 16 com TimescaleDB", "Leituras como série temporal, sessões, códigos de falha e anomalias")
-    }
-    Rel(motorista, app, "Usa")
-    Rel(app, adaptador, "Lê PIDs e códigos de falha", "Bluetooth")
-    Rel(app, caddy, "Envia leituras", "HTTPS, JSON")
-    Rel(mecanico, caddy, "Acessa", "HTTPS")
-    Rel(caddy, painel, "Encaminha páginas")
-    Rel(caddy, api, "Encaminha /api")
-    Rel(api, banco, "Lê e grava", "SQL")
+flowchart TB
+    motorista(["<b>Motorista</b><br/><i>[Pessoa]</i>"]):::pessoa
+    mecanico(["<b>Mecânico</b><br/><i>[Pessoa]</i>"]):::pessoa
+    adaptador["<b>Adaptador OBD-II</b><br/><i>[Sistema externo]</i><br/>ELM327<br/>Bluetooth clássico"]:::externo
+
+    subgraph sistema ["Telemetria Automotiva Remota"]
+        direction TB
+        app["<b>Aplicativo Android</b><br/><i>[Flutter, Dart]</i><br/>Lê o adaptador, guarda<br/>numa fila local (SQLite)<br/>e envia em lotes"]:::container
+        caddy["<b>Caddy</b><br/><i>[Caddy 2]</i><br/>HTTPS automático<br/>e roteamento"]:::container
+        painel["<b>Painel web</b><br/><i>[Next.js 16, React 19]</i><br/>Gráficos ao vivo<br/>e histórico"]:::container
+        api["<b>API REST</b><br/><i>[Node.js 22, Express 5]</i><br/>JWT, ingestão em lote,<br/>detecção de quedas,<br/>SSE e métricas"]:::container
+        banco[("<b>Banco de dados</b><br/><i>[PostgreSQL 16<br/>com TimescaleDB]</i><br/>Leituras, sessões,<br/>códigos de falha<br/>e anomalias")]:::container
+    end
+
+    motorista -->|"usa"| app
+    app -->|"lê PIDs e<br/>códigos de falha<br/>Bluetooth"| adaptador
+    app -->|"envia leituras<br/>HTTPS, JSON"| caddy
+    mecanico -->|"acessa<br/>HTTPS"| caddy
+    caddy -->|"páginas"| painel
+    caddy -->|"/api"| api
+    api -->|"lê e grava<br/>SQL"| banco
+
+    classDef pessoa fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef container fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef externo fill:#8a8a8a,stroke:#6b6b6b,color:#ffffff
+    style sistema fill:none,stroke:#888888,stroke-dasharray: 6 4
 ```
 
 ### Fluxo dos dados
@@ -153,15 +164,16 @@ Todas as decisões, com contexto e consequências, estão em [`docs/adr`](docs/a
 
 ```mermaid
 requirementDiagram
+    direction LR
     requirement R0 {
         id: R0
-        text: "Diagnosticar remotamente falhas elétricas intermitentes de um veículo em circulação"
+        text: "Diagnosticar remotamente falhas elétricas intermitentes"
         risk: high
         verifymethod: demonstration
     }
     functionalRequirement R1 {
         id: R1
-        text: "Ler tensão, rotação, velocidade, temperatura e códigos de falha pelo OBD-II"
+        text: "Ler dados e códigos de falha pelo OBD-II"
         risk: medium
         verifymethod: test
     }
@@ -207,18 +219,6 @@ requirementDiagram
         risk: low
         verifymethod: inspection
     }
-    element app {
-        type: "Aplicativo Android"
-    }
-    element api {
-        type: "API REST"
-    }
-    element painel {
-        type: "Painel web"
-    }
-    element banco {
-        type: "Banco TimescaleDB"
-    }
     R0 - contains -> R1
     R0 - contains -> R2
     R0 - contains -> R3
@@ -227,16 +227,10 @@ requirementDiagram
     R0 - contains -> R6
     R0 - contains -> R7
     R0 - contains -> R8
-    app - satisfies -> R1
-    app - satisfies -> R2
-    api - satisfies -> R2
-    banco - satisfies -> R3
-    api - satisfies -> R4
-    painel - satisfies -> R4
-    api - satisfies -> R5
-    api - satisfies -> R6
-    api - satisfies -> R7
 ```
+
+Os requisitos derivados (R1 a R8) detalham o requisito principal (R0). Quais módulos atendem a cada
+um e como são verificados está na tabela acima.
 </details>
 
 <details>
@@ -245,9 +239,9 @@ requirementDiagram
 ```mermaid
 classDiagram
     direction LR
-    class Veiculo {
+    class Veiculo["Veículo"] {
         <<block>>
-        Centrais eletrônicas (ECU)
+        Centrais eletrônicas, ECU
         Rede CAN
         Porta OBD-II
     }

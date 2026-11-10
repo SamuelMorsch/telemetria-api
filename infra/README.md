@@ -7,6 +7,7 @@ Sobe quatro containers numa única máquina (AWS EC2, Ubuntu, Docker):
 | `db` | timescale/timescaledb (PostgreSQL 16) | banco de dados | não |
 | `api` | `ghcr.io/samuelmorsch/telemetria-api` (imagem do CI da API) | API REST | não (só via proxy) |
 | `painel` | `ghcr.io/samuelmorsch/painel-telemetria-web` (imagem do CI do painel) | painel web (Next.js) | não (só via proxy) |
+| `prometheus` | prom/prometheus | coleta as métricas da API a cada 15 s (retenção de 7 dias) | não |
 | `caddy` | caddy:2-alpine | proxy reverso + HTTPS automático: `/api` vai para a API, o resto para o painel | sim, portas 80 e 443 |
 
 ## Pré-requisitos
@@ -57,6 +58,24 @@ Enquanto a variável estiver fixada, o `atualizar.sh` não troca a versão. Para
 
 As imagens (API e painel) precisam estar **públicas** no GitHub (perfil, Packages, o pacote,
 Package settings, Change visibility), ou o servidor precisa fazer `docker login ghcr.io`.
+
+## Observabilidade
+A API expõe métricas no formato Prometheus em `GET /metrics` (**só pela rede interna**: o Caddy não
+encaminha essa rota). O container `prometheus` as coleta a cada 15 segundos e guarda 7 dias, com
+limite de 128 MB de memória (a máquina tem 1 GB).
+
+**Conferir que está coletando** (no servidor, na pasta `infra`):
+```bash
+docker compose ps prometheus
+docker compose exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up'
+```
+A resposta deve trazer `"value":[...,"1"]` para os `job` `telemetria-api` e `prometheus` (1 = no ar).
+
+**Consumo de memória** (conferir depois de subir):
+```bash
+free -m
+docker stats --no-stream
+```
 
 ## Operação
 ```bash

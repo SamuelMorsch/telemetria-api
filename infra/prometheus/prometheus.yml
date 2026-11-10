@@ -1,0 +1,18 @@
+# Configuração do Prometheus: uma única fonte, a API do sistema.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 1m
+
+scrape_configs:
+  # Métricas da aplicação (requisições, leituras recebidas, anomalias, conexões ao vivo).
+  - job_name: telemetria-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:3000"]
+        labels:
+          servico: api
+
+  # O próprio Prometheus, para acompanhar o consumo dele.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

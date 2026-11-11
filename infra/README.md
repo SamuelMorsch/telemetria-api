@@ -8,6 +8,7 @@ Sobe quatro containers numa única máquina (AWS EC2, Ubuntu, Docker):
 | `api` | `ghcr.io/samuelmorsch/telemetria-api` (imagem do CI da API) | API REST | não (só via proxy) |
 | `painel` | `ghcr.io/samuelmorsch/painel-telemetria-web` (imagem do CI do painel) | painel web (Next.js) | não (só via proxy) |
 | `prometheus` | prom/prometheus | coleta as métricas da API a cada 15 s (retenção de 7 dias) | não |
+| `grafana` | grafana/grafana | painéis de observabilidade, em `/grafana` (visitantes só visualizam) | via Caddy |
 | `caddy` | caddy:2-alpine | proxy reverso + HTTPS automático: `/api` vai para a API, o resto para o painel | sim, portas 80 e 443 |
 
 ## Pré-requisitos
@@ -61,18 +62,32 @@ Package settings, Change visibility), ou o servidor precisa fazer `docker login 
 
 ## Observabilidade
 A API expõe métricas no formato Prometheus em `GET /metrics` (**só pela rede interna**: o Caddy não
-encaminha essa rota). O container `prometheus` as coleta a cada 15 segundos e guarda 7 dias, com
-limite de 128 MB de memória (a máquina tem 1 GB).
+encaminha essa rota). O container `prometheus` as coleta a cada 15 segundos e guarda 7 dias, e o
+`grafana` as mostra no painel **Telemetria Automotiva: visão geral**, com a saúde da API
+(requisições, tempo de resposta, memória) e a telemetria dos dispositivos (leituras recebidas e
+reenvios, última leitura, painéis ao vivo, anomalias e códigos de falha).
 
-**Conferir que está coletando** (no servidor, na pasta `infra`):
+- **Endereço:** `https://SEU_DOMINIO/grafana/` abre direto no painel.
+- **Visitantes** sem login só **visualizam** (papel Viewer). Para exigir login até para ver, defina
+  `GRAFANA_ANONYMOUS=false` no `.env`.
+- **Administrador:** usuário `admin` e a senha de `GRAFANA_ADMIN_PASSWORD` (no `.env`).
+- **O painel é código:** fica em `grafana/dashboards/telemetria.json` e é carregado sozinho. Editar na
+  tela não grava nada (para mudar, altere o arquivo e faça o PR).
+- Memória: Prometheus com limite de 160 MB e Grafana com 192 MB (a máquina tem 1 GB).
+
+**Primeira vez que o Grafana é instalado** (no servidor, na pasta `infra`):
 ```bash
-docker compose ps prometheus
-docker compose exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up'
+echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env    # antes do git pull
+git pull
+docker compose up -d grafana
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
 ```
-A resposta deve trazer `"value":[...,"1"]` para os `job` `telemetria-api` e `prometheus` (1 = no ar).
 
-**Consumo de memória** (conferir depois de subir):
+**Conferir:**
 ```bash
+docker compose ps grafana prometheus
+docker compose logs --tail=20 grafana
+docker compose exec prometheus wget -qO- 'http://localhost:9090/api/v1/query?query=up'
 free -m
 docker stats --no-stream
 ```

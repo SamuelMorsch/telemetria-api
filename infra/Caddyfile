@@ -11,6 +11,11 @@
 		}
 	}
 
+	# Painéis de observabilidade (Grafana), em /grafana
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
 	# O resto é o painel web
 	handle {
 		reverse_proxy painel:3000

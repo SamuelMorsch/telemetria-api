@@ -1,4 +1,4 @@
-# Stack de produção: banco + API + painel + proxy HTTPS.
+# Stack de produção: banco + API + painel + proxy HTTPS + coleta de métricas (Prometheus).
 # Uso: docker compose up -d   (dentro da pasta infra/)
 # As imagens da API e do painel são construídas pelo CI e publicadas no GitHub Container Registry.
 name: telemetria
@@ -64,6 +64,30 @@ services:
     mem_limit: 200m
     # Sem "ports": o Caddy encaminha o tráfego pela rede interna.
 
+  prometheus:
+    # Coleta as métricas da API (GET /metrics, só na rede interna) a cada 15 s.
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=500MB
+    environment:
+      # Faz o coletor de lixo respeitar o limite de memória do container (máquina de 1 GB).
+      GOMEMLIMIT: 96MiB
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    mem_limit: 128m
+    # Sem "ports": o Prometheus não fica exposto na internet.
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -85,3 +109,4 @@ volumes:
   db_data:
   caddy_data:
   caddy_config:
+  prometheus_data:

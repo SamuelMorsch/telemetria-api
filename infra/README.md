@@ -47,7 +47,7 @@ O `flock` impede duas execuções ao mesmo tempo. O histórico fica em `~/atuali
 cd ~/telemetria-api && git pull     # só necessário se o docker-compose.yml ou o Caddyfile mudaram
 cd infra
 sh atualizar.sh
-docker compose restart caddy        # só necessário se o Caddyfile mudou
+docker compose up -d --force-recreate caddy   # só se o Caddyfile mudou (restart NÃO relê o arquivo novo)
 ```
 As migrations novas da API são aplicadas sozinhas quando ela inicia.
 
@@ -77,11 +77,15 @@ reenvios, última leitura, painéis ao vivo, anomalias e códigos de falha).
 
 **Primeira vez que o Grafana é instalado** (no servidor, na pasta `infra`):
 ```bash
-echo "GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 16)" >> .env    # antes do git pull
+printf '\nGRAFANA_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 16)" >> .env    # antes do git pull
 git pull
 docker compose up -d grafana
-docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile   # confere a sintaxe
+docker compose up -d --force-recreate caddy
 ```
+
+> **Por que `--force-recreate` e não `restart`?** O Git troca o `Caddyfile` por um arquivo novo, mas o container
+> continua ligado ao antigo. Só recriar o container refaz essa ligação. O `validate` testa o arquivo novo antes.
 
 **Conferir:**
 ```bash

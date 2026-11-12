@@ -23,7 +23,11 @@ Trabalho de Conclusão de Curso de Engenharia de Software (Católica SC, 2026) �
      Arrastar um .mp4 para o editor do GitHub também funciona, mas o limite de tamanho do envio
      direto é pequeno em contas gratuitas. -->
 
-**Sistema no ar:** https://telemetria-tcc.duckdns.org · **Documentação interativa da API:** [`/api/docs`](https://telemetria-tcc.duckdns.org/api/docs)
+**Sistema no ar:** https://telemetria-tcc.duckdns.org · **Documentação interativa da API:** [`/api/docs`](https://telemetria-tcc.duckdns.org/api/docs) · **Observabilidade:** [`/grafana`](https://telemetria-tcc.duckdns.org/grafana/)
+
+![Painel web mostrando uma sessão simulada: a queda de tensão destacada em vermelho e os códigos de falha com descrição](docs/img/painel-sessao-encerrada.png)
+
+_Painel web com uma sessão **simulada** (marcada como "Simulada"): o alternador cai de 14 V para 11,5 V a ~4000 rpm, a queda aparece destacada no gráfico e os códigos de falha vêm com a descrição em português._
 
 ## Índice
 [O problema](#o-problema) · [Ecossistema](#ecossistema) · [Arquitetura](#arquitetura) ·
@@ -80,6 +84,8 @@ flowchart TB
         caddy["<b>Caddy</b><br/><i>[Caddy 2]</i><br/>HTTPS automático<br/>e roteamento"]:::container
         painel["<b>Painel web</b><br/><i>[Next.js 16, React 19]</i><br/>Gráficos ao vivo<br/>e histórico"]:::container
         api["<b>API REST</b><br/><i>[Node.js 22, Express 5]</i><br/>JWT, ingestão em lote,<br/>detecção de quedas,<br/>SSE e métricas"]:::container
+        grafana["<b>Grafana</b><br/><i>[Grafana 12]</i><br/>Painel de observabilidade<br/>(leitura pública)"]:::container
+        prometheus["<b>Prometheus</b><br/><i>[Prometheus 3]</i><br/>Coleta as métricas<br/>da API a cada 15 s"]:::container
         banco[("<b>Banco de dados</b><br/><i>[PostgreSQL 16<br/>com TimescaleDB]</i><br/>Leituras, sessões,<br/>códigos de falha<br/>e anomalias")]:::container
     end
 
@@ -89,7 +95,10 @@ flowchart TB
     mecanico -->|"acessa<br/>HTTPS"| caddy
     caddy -->|"páginas"| painel
     caddy -->|"/api"| api
+    caddy -->|"/grafana"| grafana
     api -->|"lê e grava<br/>SQL"| banco
+    prometheus -->|"coleta /metrics"| api
+    grafana -->|"consulta"| prometheus
 
     classDef pessoa fill:#08427b,stroke:#052e56,color:#ffffff
     classDef container fill:#1168bd,stroke:#0b4884,color:#ffffff
@@ -132,6 +141,8 @@ sequenceDiagram
   históricos no próprio banco.
 - **SSE em vez de WebSockets.** O fluxo é só do servidor para o painel; SSE usa HTTP comum,
   passa pelo proxy e reconecta sozinho.
+- **Observabilidade enxuta.** Prometheus e Grafana rodam na mesma máquina de 1 GB, com limite de memória
+  de 160 MB e 192 MB, e o painel é um arquivo versionado no repositório (`infra/grafana`).
 - **Sem plataformas "tudo pronto".** Banco, autenticação e API são controlados por este projeto
   (ver [ADR 0001](docs/adr/0001-banco-proprio-em-vez-de-supabase.md)).
 
@@ -382,16 +393,24 @@ Cada commit passa por testes automatizados e análise estática no
 | Injeção de CORS (S8348) | `src/security.js` | A origem recebida já era checada contra a lista, mas a ferramenta não reconhecia a checagem. | Refatorado: o cabeçalho devolve o valor da lista configurada, nunca o texto do cliente. |
 
 ## Operação
-- **Infraestrutura:** AWS EC2 com Docker Compose (banco, API, painel e Caddy). Instalação e
+- **Infraestrutura:** AWS EC2 com Docker Compose (banco, API, painel, Caddy, Prometheus e Grafana). Instalação e
   manutenção em [`infra/README.md`](infra/README.md).
 - **Integração e entrega contínuas:** a cada merge na `main`, o GitHub Actions executa os testes,
   a análise do SonarQube Cloud e publica a imagem Docker no GitHub Container Registry.
 - **Deploy sem SSH:** o servidor consulta o registro a cada 5 minutos e recria só o que mudou
   ([`infra/atualizar.sh`](infra/atualizar.sh)). O GitHub nunca se conecta ao servidor. Para voltar
   a uma versão anterior, fixe `API_TAG` com o código do commit.
-- **Observabilidade:** `GET /metrics` expõe, no formato Prometheus, requisições HTTP e sua
-  duração, leituras e códigos de falha gravados, leituras repetidas descartadas, anomalias,
-  painéis conectados ao vivo e o instante da última leitura recebida.
+- **Observabilidade:** a API expõe `GET /metrics` (formato Prometheus, só pela rede interna) com as
+  requisições HTTP e sua duração, as leituras recebidas e as repetidas (reenvios), os códigos de falha e as
+  anomalias gravados, os painéis conectados ao vivo e o instante da última leitura. O **Prometheus** coleta
+  a cada 15 s e o **Grafana** mostra o painel
+  [Telemetria Automotiva: visão geral](https://telemetria-tcc.duckdns.org/grafana/), aberto para leitura
+  sem login. O painel é código: [`infra/grafana`](infra/grafana).
+
+![Painel de observabilidade no Grafana: saúde da API e telemetria dos dispositivos](docs/img/grafana-painel.png)
+
+_Painel do Grafana durante uma simulação: leituras por minuto, tráfego e tempo de resposta da API, memória
+dos processos, painéis ao vivo, anomalias e códigos de falha._
 
 ## Rodando localmente
 Requer Node 22+ e um PostgreSQL com TimescaleDB (por exemplo, o container de [`infra/`](infra)).

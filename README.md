@@ -17,9 +17,13 @@ Trabalho de Conclusão de Curso de Engenharia de Software (Católica SC, 2026) �
 
 ## Demonstração
 
-[![Vídeo: o sistema funcionando em um carro](https://img.youtube.com/vi/qViO-gN4CwU/hqdefault.jpg)](https://www.youtube.com/watch?v=qViO-gN4CwU)
-
-▶️ **[Assista ao vídeo do sistema funcionando em um carro](https://www.youtube.com/watch?v=qViO-gN4CwU)**
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=qViO-gN4CwU">
+    <img src="https://img.youtube.com/vi/qViO-gN4CwU/maxresdefault.jpg" alt="Vídeo: o sistema funcionando em um carro" width="640">
+  </a>
+  <br>
+  <a href="https://www.youtube.com/watch?v=qViO-gN4CwU">▶️ <b>Assista ao vídeo do sistema funcionando em um carro</b></a>
+</p>
 
 **Sistema no ar:** https://telemetria-tcc.duckdns.org · **Documentação interativa da API:** [`/api/docs`](https://telemetria-tcc.duckdns.org/api/docs) · **Observabilidade:** [`/grafana`](https://telemetria-tcc.duckdns.org/grafana/)
 

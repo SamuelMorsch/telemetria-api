@@ -19,7 +19,7 @@ Trabalho de Conclusão de Curso de Engenharia de Software (Católica SC, 2026) �
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=qViO-gN4CwU">
-    <img src="https://img.youtube.com/vi/qViO-gN4CwU/maxresdefault.jpg" alt="Vídeo: o sistema funcionando em um carro" width="640">
+    <img src="https://img.youtube.com/vi/qViO-gN4CwU/hqdefault.jpg" alt="Vídeo: o sistema funcionando em um carro" width="480">
   </a>
   <br>
   <a href="https://www.youtube.com/watch?v=qViO-gN4CwU">▶️ <b>Assista ao vídeo do sistema funcionando em um carro</b></a>
@@ -445,12 +445,8 @@ Primeira captura em carro real, com o veículo parado:
 | Motor ligado | 14,10 V | 14,38 V | 965 rpm | 47 °C |
 
 Os valores são coerentes: bateria em repouso e alternador carregando com o motor girando.
-O adaptador mede cerca de 0,2 a 0,3 V abaixo da central; a comparação com multímetro vai indicar
-qual das duas leituras é a mais precisa. Códigos de falha lidos nesse carro: nenhum (as duas
-centrais responderam "0 códigos").
-
-**Em andamento:** teste com o carro em movimento, comparação com multímetro e validação com uma
-oficina parceira.
+O adaptador mede cerca de 0,2 a 0,3 V abaixo da tensão informada pela central. Códigos de falha
+lidos nesse carro: nenhum (as duas centrais responderam "0 códigos").
 
 ## Contribuindo
 Sugestões e correções são bem-vindas. Veja [`CONTRIBUTING.md`](CONTRIBUTING.md).

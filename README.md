@@ -437,16 +437,34 @@ node scripts/simulate.js --url https://SEU_DOMINIO --email EMAIL --password SENH
 As sessões geradas ficam marcadas com `source = simulator`.
 
 ## Validação
-Primeira captura em carro real, com o veículo parado:
+
+### Comparação com o multímetro
+Tensão medida com um multímetro nos terminais da bateria e comparada com as duas tensões que o app
+lê, com uma leitura por condição. ▶️ [Vídeo da comparação](https://www.youtube.com/watch?v=aawDvY33nKo)
+
+| Condição | Multímetro (bateria) | Central (app) | Erro | Adaptador (app) | Erro | Rotação |
+|---|---|---|---|---|---|---|
+| A. Ignição ligada, motor parado | 12,40 V | 12,35 V | −0,05 V | 12,00 V | −0,40 V | 0 rpm |
+| B. Marcha lenta | 14,22 V | 14,23 V | +0,01 V | 13,80 V | −0,42 V | 860 rpm |
+| C. Motor a ~2500 rpm | 14,32 V | 14,30 V | −0,02 V | 13,90 V | −0,42 V | 2500 rpm |
+
+- A **tensão informada pela central** (PID `01 42`) ficou a até **0,05 V** do multímetro (erro máximo de 0,4%).
+- A **tensão medida pelo próprio adaptador** (`AT RV`) leu **cerca de 0,4 V abaixo** nas três condições
+  (em torno de 3%). O desvio é regular (de 0,40 a 0,42 V), o que sugere um erro sistemático, de calibração do
+  adaptador ou de queda na fiação até a porta OBD-II, e não ruído.
+- Por isso o sistema **grava e mostra as duas tensões separadamente**: o gráfico do painel traz as duas linhas.
+
+### Primeira captura em carro real
+Com o veículo parado:
 
 | Situação | Tensão no conector | Tensão informada pela central | Rotação | Temperatura |
 |---|---|---|---|---|
 | Ignição ligada, motor parado | 11,90 V | 12,19 V | 0 rpm | 41 °C |
 | Motor ligado | 14,10 V | 14,38 V | 965 rpm | 47 °C |
 
-Os valores são coerentes: bateria em repouso e alternador carregando com o motor girando.
-O adaptador mede cerca de 0,2 a 0,3 V abaixo da tensão informada pela central. Códigos de falha
-lidos nesse carro: nenhum (as duas centrais responderam "0 códigos").
+Os valores são coerentes: bateria em repouso e alternador carregando com o motor girando. Aqui também o
+adaptador leu cerca de 0,3 V abaixo da central. Códigos de falha lidos nesse carro: nenhum (as duas
+centrais responderam "0 códigos").
 
 ## Contribuindo
 Sugestões e correções são bem-vindas. Veja [`CONTRIBUTING.md`](CONTRIBUTING.md).
